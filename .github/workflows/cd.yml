@@ -1,0 +1,41 @@
+name: CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      helm_release:
+        description: 'Helm'
+        required: true
+      namespace:
+        description: 'Kubernetes'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.10.0'
+
+      - name: Verify Helm Version
+        run: helm version
+
+      - name: Configure Kubernetes
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Build Helm Chart
+        run: |
+          helm package ./helm-chart/devops-app -d ./helm-chart/output
+          ls -l ./helm-chart/output  # Vérifie le contenu du répertoire
+
+      - name: Deploy Helm Chart
+        run: |
+          helm upgrade --install mon_app_image ./helm-chart/output/mon_app_image-*.tgz \
+          --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/mon_app_image \
+          --set image.tag=latest
